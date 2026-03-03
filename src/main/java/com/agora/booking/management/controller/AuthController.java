@@ -1,7 +1,9 @@
 package com.agora.booking.management.controller;
 
+import com.agora.booking.management.dto.request.LoginRequest;
 import com.agora.booking.management.dto.request.RegisterRequest;
 import com.agora.booking.management.dto.response.ApiResponse;
+import com.agora.booking.management.dto.response.LoginResponse;
 import com.agora.booking.management.dto.response.UserResponse;
 import com.agora.booking.management.service.AuthService;
 import jakarta.validation.Valid;
@@ -23,8 +25,7 @@ public class AuthController {
     private final AuthService authService;
 
     // =============================================
-    // POST /api/auth/register
-    // FR01 — User Registration
+    // POST /api/auth/register — FR01
     // =============================================
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<UserResponse>> register(
@@ -37,5 +38,21 @@ public class AuthController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("User registered successfully", userResponse));
+    }
+
+    // =============================================
+    // POST /api/auth/login — FR02
+    // =============================================
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<LoginResponse>> login(
+            @Valid @RequestBody LoginRequest request) {
+
+        log.debug("POST /api/auth/login - email: {}", request.getEmail());
+
+        LoginResponse loginResponse = authService.login(request);
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(ApiResponse.success("Login successful", loginResponse));
     }
 }
