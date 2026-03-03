@@ -7,6 +7,7 @@ import com.agora.booking.management.dto.response.UserResponse;
 import com.agora.booking.management.entity.User;
 import com.agora.booking.management.exception.EmailAlreadyExistsException;
 import com.agora.booking.management.exception.InvalidCredentialsException;
+import com.agora.booking.management.exception.ResourceNotFoundException;
 import com.agora.booking.management.repository.UserRepository;
 import com.agora.booking.management.service.impl.AuthServiceImpl;
 import com.agora.booking.management.util.JwtUtil;
@@ -29,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -228,5 +230,75 @@ class AuthServiceImplTest {
 
         // Assert — generateToken dipanggil tepat 1x dengan email yang benar
         verify(jwtUtil, times(1)).generateToken("alice@example.com");
+    }
+
+    // =============================================
+    // FR03 — Get My Profile Tests
+    // =============================================
+    @Test
+    @DisplayName("Should return UserResponse when token is valid and user exists")
+    void getMyProfile_ShouldReturnUserResponse_WhenUserExists() {
+
+        // Arrange
+        when(userRepository.findByEmail(savedUser.getEmail()))
+                .thenReturn(Optional.of(savedUser));
+
+        // Act
+        UserResponse response = authService.getMyProfile("alice@example.com");
+
+        // Assert
+        assertThat(response).isNotNull();
+        assertThat(response.getId()).isEqualTo(1L);
+        assertThat(response.getName()).isEqualTo("Alice Johnson");
+        assertThat(response.getEmail()).isEqualTo("alice@example.com");
+        assertThat(response.getCreatedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when user not found")
+    void getMyProfile_ShouldThrowResourceNotFoundException_WhenUserNotFound() {
+
+        // Arrange
+        when(userRepository.findByEmail("notfound@example.com"))
+                .thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> authService.getMyProfile("notfound@example.com"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("notfound@example.com");
+
+        verify(userRepository, times(1)).findByEmail("notfound@example.com");
+    }
+
+    @Test
+    @DisplayName("Should not expose password in profile response")
+    void getMyProfile_ShouldNotExposePassword_InResponse() {
+
+        // Arrange
+        when(userRepository.findByEmail(savedUser.getEmail()))
+                .thenReturn(Optional.of(savedUser));
+
+        // Act
+        UserResponse response = authService.getMyProfile("alice@example.com");
+
+        // Assert
+        assertThat(response.getClass().getDeclaredFields())
+                .extracting("name")
+                .doesNotContain("password");
+    }
+
+    @Test
+    @DisplayName("Should call findByEmail once with correct email from token")
+    void getMyProfile_ShouldCallFindByEmail_WithCorrectEmail() {
+
+        // Arrange
+        when(userRepository.findByEmail("alice@example.com"))
+                .thenReturn(Optional.of(savedUser));
+
+        // Act
+        authService.getMyProfile("alice@example.com");
+
+        // Assert — findByEmail dipanggil tepat 1x dengan email dari token
+        verify(userRepository, times(1)).findByEmail("alice@example.com");
     }
 }
