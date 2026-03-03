@@ -11,6 +11,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api")
 @RequiredArgsConstructor
 public class AuthController {
 
@@ -27,7 +30,7 @@ public class AuthController {
     // =============================================
     // POST /api/auth/register — FR01
     // =============================================
-    @PostMapping("/register")
+    @PostMapping("/auth/register")
     public ResponseEntity<ApiResponse<UserResponse>> register(
             @Valid @RequestBody RegisterRequest request) {
 
@@ -43,7 +46,7 @@ public class AuthController {
     // =============================================
     // POST /api/auth/login — FR02
     // =============================================
-    @PostMapping("/login")
+    @PostMapping("/auth/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(
             @Valid @RequestBody LoginRequest request) {
 
@@ -54,5 +57,23 @@ public class AuthController {
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(ApiResponse.success("Login successful", loginResponse));
+    }
+
+    // =============================================
+    // GET /api/users/me — FR03
+    // @AuthenticationPrincipal → ambil user dari JWT token
+    // TIDAK dari request body atau query param
+    // =============================================
+    @GetMapping("/users/me")
+    public ResponseEntity<ApiResponse<UserResponse>> getMyProfile(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.debug("GET /api/users/me - email: {}", userDetails.getUsername());
+
+        UserResponse userResponse = authService.getMyProfile(userDetails.getUsername());
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(ApiResponse.success("User profile retrieved successfully", userResponse));
     }
 }
