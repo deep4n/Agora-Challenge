@@ -7,6 +7,7 @@ import com.agora.booking.management.dto.response.UserResponse;
 import com.agora.booking.management.entity.User;
 import com.agora.booking.management.exception.EmailAlreadyExistsException;
 import com.agora.booking.management.exception.InvalidCredentialsException;
+import com.agora.booking.management.exception.ResourceNotFoundException;
 import com.agora.booking.management.repository.UserRepository;
 import com.agora.booking.management.service.AuthService;
 import com.agora.booking.management.util.JwtUtil;
@@ -92,6 +93,22 @@ public class AuthServiceImpl implements AuthService {
                 .tokenType("Bearer")
                 .user(mapToUserResponse(user))
                 .build();
+    }
+
+    // =============================================
+    // FR03 — Get My Profile
+    // email diambil dari JWT token, bukan request body
+    // =============================================
+    @Override
+    @Transactional(readOnly = true)
+    public UserResponse getMyProfile(String email) {
+
+        log.debug("Fetching profile for email: {}", email);
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User", email));
+
+        return mapToUserResponse(user);
     }
 
     // =============================================
