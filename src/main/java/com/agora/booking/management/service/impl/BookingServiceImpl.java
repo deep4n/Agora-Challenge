@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -123,5 +124,25 @@ public class BookingServiceImpl implements BookingService {
                         .build())
                 .createdAt(booking.getCreatedAt())
                 .build();
+    }
+
+    // =============================================
+    // FR11 — Get My Bookings
+    // Ambil semua booking milik user dari token
+    // Urutan: terbaru di atas (createdAt DESC)
+    // =============================================
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getMyBookings(String userEmail) {
+
+        log.debug("Fetching bookings for user: {}", userEmail);
+
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userEmail));
+
+        return bookingRepository.findByUserIdOrderByCreatedAtDesc(user.getId())
+                .stream()
+                .map(this::mapToBookingResponse)
+                .toList();
     }
 }
