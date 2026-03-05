@@ -6,6 +6,7 @@ import com.agora.booking.management.dto.response.BookingResponse;
 import com.agora.booking.management.entity.Booking;
 import com.agora.booking.management.entity.Event;
 import com.agora.booking.management.entity.User;
+import com.agora.booking.management.exception.BookingCancellationException;
 import com.agora.booking.management.exception.DuplicateBookingException;
 import com.agora.booking.management.exception.EventNotAvailableException;
 import com.agora.booking.management.exception.InsufficientSeatsException;
@@ -144,5 +145,54 @@ public class BookingServiceImpl implements BookingService {
                 .stream()
                 .map(this::mapToBookingResponse)
                 .toList();
+    }
+
+    // =============================================
+    // FR12 — Cancel Booking
+    // - Hanya pemilik booking yang bisa cancel
+    // - Hanya boleh cancel > 24 jam sebelum event
+    // - availableSeats dikembalikan setelah cancel
+    // =============================================
+    @Override
+    @Transactional
+    public BookingResponse cancelBooking(Long bookingId, String userEmail) {
+
+        log.debug("Cancelling booking id: {} by user: {}", bookingId, userEmail);
+
+        // 1. Ambil user dari token
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userEmail));
+
+        // 2. Cari booking milik user — jika tidak ada atau bukan miliknya → 404
+        Booking booking = bookingRepository.findByIdAndUserId(bookingId, user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+
+        // 3. Cek apakah booking sudah cancelled
+        if (booking.getStatus() == BookingStatus.CANCELLED) {
+            throw new BookingCancellationException("Booking is already cancelled");
+        }
+
+        // 4. Cek batas waktu cancel — harus > 24 jam sebelum eventDate
+        LocalDateTime cancellationDeadline = booking.getEvent()
+                .getEventDate()
+                .minusHours(24);
+
+        if (LocalDateTime.now().isAfter(cancellationDeadline)) {
+            throw new BookingCancellationException(
+                    "Cancellation is only allowed up to 24 hours before the event");
+        }
+
+        // 5. Kembalikan available seats
+        Event event = booking.getEvent();
+        event.setAvailableSeats(event.getAvailableSeats() + booking.getNumTickets());
+        eventRepository.save(event);
+
+        // 6. Update status booking → CANCELLED
+        booking.setStatus(BookingStatus.CANCELLED);
+        Booking cancelledBooking = bookingRepository.save(booking);
+
+        log.debug("Booking id: {} cancelled successfully", bookingId);
+
+        return mapToBookingResponse(cancelledBooking);
     }
 }
