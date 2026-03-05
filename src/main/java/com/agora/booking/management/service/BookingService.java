@@ -10,4 +10,6 @@ public interface BookingService {
     BookingResponse createBooking(CreateBookingRequest request, String userEmail);
 
     List<BookingResponse> getMyBookings(String userEmail);
+
+    BookingResponse cancelBooking(Long bookingId, String userEmail);
 }
