@@ -1,6 +1,7 @@
 package com.agora.booking.management.controller;
 
 import com.agora.booking.management.dto.request.CreateEventRequest;
+import com.agora.booking.management.dto.request.UpdateEventRequest;
 import com.agora.booking.management.dto.response.ApiResponse;
 import com.agora.booking.management.dto.response.EventResponse;
 import com.agora.booking.management.dto.response.PageResponse;
@@ -77,7 +78,6 @@ public class EventController {
 
     // =============================================
     // GET /api/events/{id} — FR06
-    // Public endpoint — tidak butuh token
     // =============================================
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<EventResponse>> getEventById(
@@ -90,5 +90,27 @@ public class EventController {
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(ApiResponse.success("Event retrieved successfully", eventResponse));
+    }
+
+    // =============================================
+    // PUT /api/events/{id} — FR07
+    // Protected — hanya creator yang boleh update
+    // =============================================
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<EventResponse>> updateEvent(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateEventRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.debug("PUT /api/events/{} - editor: {}", id, userDetails.getUsername());
+
+        EventResponse eventResponse = eventService.updateEvent(
+                id,
+                request,
+                userDetails.getUsername());
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(ApiResponse.success("Event updated successfully", eventResponse));
     }
 }
