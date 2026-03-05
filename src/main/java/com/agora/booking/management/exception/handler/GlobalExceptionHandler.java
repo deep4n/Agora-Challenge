@@ -1,6 +1,7 @@
 package com.agora.booking.management.exception.handler;
 
 import com.agora.booking.management.dto.response.ErrorResponse;
+import com.agora.booking.management.exception.BookingCancellationException;
 import com.agora.booking.management.exception.DuplicateBookingException;
 import com.agora.booking.management.exception.EmailAlreadyExistsException;
 import com.agora.booking.management.exception.EventNotAvailableException;
@@ -71,6 +72,23 @@ public class GlobalExceptionHandler {
         @ExceptionHandler(EventNotAvailableException.class)
         public ResponseEntity<ErrorResponse> handleEventNotAvailableException(
                         EventNotAvailableException ex) {
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error("Bad Request")
+                                .message(ex.getMessage())
+                                .timestamp(LocalDateTime.now())
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+
+        // =============================================
+        // 400 — Booking Cancellation Not Allowed
+        // =============================================
+        @ExceptionHandler(BookingCancellationException.class)
+        public ResponseEntity<ErrorResponse> handleBookingCancellationException(
+                        BookingCancellationException ex) {
 
                 ErrorResponse response = ErrorResponse.builder()
                                 .status(HttpStatus.BAD_REQUEST.value())
