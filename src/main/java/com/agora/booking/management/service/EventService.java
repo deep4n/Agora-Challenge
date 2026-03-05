@@ -17,4 +17,6 @@ public interface EventService {
             String location,
             LocalDateTime startDate,
             LocalDateTime endDate);
+
+    EventResponse getEventById(Long id);
 }
