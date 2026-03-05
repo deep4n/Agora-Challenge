@@ -11,10 +11,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -65,5 +61,26 @@ public class BookingController {
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(ApiResponse.success("Bookings retrieved successfully", bookings));
+    }
+
+    // =============================================
+    // PATCH /api/bookings/{id}/cancel — FR12
+    // Protected — hanya pemilik booking yang bisa cancel
+    // =============================================
+    @PatchMapping("/{id}/cancel")
+    public ResponseEntity<ApiResponse<BookingResponse>> cancelBooking(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.debug("PATCH /api/bookings/{}/cancel - user: {}",
+                id, userDetails.getUsername());
+
+        BookingResponse bookingResponse = bookingService.cancelBooking(
+                id,
+                userDetails.getUsername());
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(ApiResponse.success("Booking cancelled successfully", bookingResponse));
     }
 }
