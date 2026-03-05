@@ -1,7 +1,9 @@
 package com.agora.booking.management.service;
 
 import com.agora.booking.management.dto.request.CreateEventRequest;
+import com.agora.booking.management.dto.request.RegisterRequest;
 import com.agora.booking.management.dto.response.EventResponse;
+import com.agora.booking.management.dto.response.PageResponse;
 import com.agora.booking.management.entity.Event;
 import com.agora.booking.management.entity.User;
 import com.agora.booking.management.exception.ResourceNotFoundException;
@@ -15,9 +17,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -80,8 +88,9 @@ class EventServiceImplTest {
     }
 
     // =============================================
-    // Test 1 — Create event berhasil
+    // FR04 — Create Event Tests
     // =============================================
+
     @Test
     @DisplayName("Should return EventResponse when event is created successfully")
     void createEvent_ShouldReturnEventResponse_WhenDataIsValid() {
@@ -105,9 +114,6 @@ class EventServiceImplTest {
         assertThat(response.getIsActive()).isTrue();
     }
 
-    // =============================================
-    // Test 2 — Creator diambil dari token
-    // =============================================
     @Test
     @DisplayName("Should set creator from JWT token email, not from request body")
     void createEvent_ShouldSetCreator_FromTokenEmail() {
@@ -125,14 +131,9 @@ class EventServiceImplTest {
         assertThat(response.getCreator()).isNotNull();
         assertThat(response.getCreator().getId()).isEqualTo(1L);
         assertThat(response.getCreator().getName()).isEqualTo("Alice Johnson");
-
-        // Pastikan findByEmail dipanggil dengan email dari token
         verify(userRepository, times(1)).findByEmail("alice@example.com");
     }
 
-    // =============================================
-    // Test 3 — Creator tidak ditemukan di DB
-    // =============================================
     @Test
     @DisplayName("Should throw ResourceNotFoundException when creator not found")
     void createEvent_ShouldThrowResourceNotFoundException_WhenCreatorNotFound() {
@@ -146,13 +147,9 @@ class EventServiceImplTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("notfound@example.com");
 
-        // Pastikan save TIDAK dipanggil
         verify(eventRepository, never()).save(any(Event.class));
     }
 
-    // =============================================
-    // Test 4 — Event gratis (ticketPrice = 0)
-    // =============================================
     @Test
     @DisplayName("Should allow ticketPrice zero for free events")
     void createEvent_ShouldAllowZeroTicketPrice_ForFreeEvents() {
@@ -186,9 +183,6 @@ class EventServiceImplTest {
         assertThat(response.getTicketPrice()).isEqualByComparingTo(BigDecimal.ZERO);
     }
 
-    // =============================================
-    // Test 5 — isActive default true saat dibuat
-    // =============================================
     @Test
     @DisplayName("Should set isActive to true when event is created")
     void createEvent_ShouldSetIsActive_ToTrueByDefault() {
@@ -204,8 +198,121 @@ class EventServiceImplTest {
 
         // Assert
         assertThat(response.getIsActive()).isTrue();
-
-        // Pastikan event yang disave memiliki isActive = true
         verify(eventRepository).save(argThat(event -> event.getIsActive().equals(true)));
+    }
+
+    // =============================================
+    // FR05 + FR09 — List & Search Events Tests
+    // =============================================
+
+    @Test
+    @DisplayName("Should return paginated events when no filter applied")
+    void listEvents_ShouldReturnPagedEvents_WhenNoFilterApplied() {
+
+        // Arrange
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Event> eventPage = new PageImpl<>(List.of(savedEvent), pageable, 1);
+
+        when(eventRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(eventPage);
+
+        // Act
+        PageResponse<EventResponse> response = eventService.listEvents(
+                0, 10, null, null, null, null);
+
+        // Assert
+        assertThat(response).isNotNull();
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getTotalElements()).isEqualTo(1);
+        assertThat(response.getPageNumber()).isEqualTo(0);
+        assertThat(response.getPageSize()).isEqualTo(10);
+        assertThat(response.isLast()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Should return filtered events when title filter applied")
+    void listEvents_ShouldReturnFilteredEvents_WhenTitleFilterApplied() {
+
+        // Arrange
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Event> eventPage = new PageImpl<>(List.of(savedEvent), pageable, 1);
+
+        when(eventRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(eventPage);
+
+        // Act
+        PageResponse<EventResponse> response = eventService.listEvents(
+                0, 10, "tech", null, null, null);
+
+        // Assert
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).getTitle())
+                .containsIgnoringCase("tech");
+    }
+
+    @Test
+    @DisplayName("Should return filtered events when location filter applied")
+    void listEvents_ShouldReturnFilteredEvents_WhenLocationFilterApplied() {
+
+        // Arrange
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Event> eventPage = new PageImpl<>(List.of(savedEvent), pageable, 1);
+
+        when(eventRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(eventPage);
+
+        // Act
+        PageResponse<EventResponse> response = eventService.listEvents(
+                0, 10, null, "jakarta", null, null);
+
+        // Assert
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).getLocation())
+                .containsIgnoringCase("jakarta");
+    }
+
+    @Test
+    @DisplayName("Should return empty page when no events match filter")
+    void listEvents_ShouldReturnEmptyPage_WhenNoEventsMatchFilter() {
+
+        // Arrange
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Event> emptyPage = new PageImpl<>(List.of(), pageable, 0);
+
+        when(eventRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(emptyPage);
+
+        // Act
+        PageResponse<EventResponse> response = eventService.listEvents(
+                0, 10, "nonexistent", null, null, null);
+
+        // Assert
+        assertThat(response.getContent()).isEmpty();
+        assertThat(response.getTotalElements()).isEqualTo(0);
+        assertThat(response.isLast()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Should return filtered events when date range filter applied")
+    void listEvents_ShouldReturnFilteredEvents_WhenDateRangeFilterApplied() {
+
+        // Arrange
+        LocalDateTime startDate = LocalDateTime.of(2025, 1, 1, 0, 0, 0);
+        LocalDateTime endDate = LocalDateTime.of(2025, 12, 31, 23, 59, 59);
+
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Event> eventPage = new PageImpl<>(List.of(savedEvent), pageable, 1);
+
+        when(eventRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(eventPage);
+
+        // Act
+        PageResponse<EventResponse> response = eventService.listEvents(
+                0, 10, null, null, startDate, endDate);
+
+        // Assert
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).getEventDate())
+                .isBetween(startDate, endDate);
     }
 }
