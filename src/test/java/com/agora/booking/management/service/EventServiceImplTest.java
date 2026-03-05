@@ -1,11 +1,13 @@
 package com.agora.booking.management.service;
 
 import com.agora.booking.management.dto.request.CreateEventRequest;
+import com.agora.booking.management.dto.request.UpdateEventRequest;
 import com.agora.booking.management.dto.response.EventResponse;
 import com.agora.booking.management.dto.response.PageResponse;
 import com.agora.booking.management.entity.Event;
 import com.agora.booking.management.entity.User;
 import com.agora.booking.management.exception.ResourceNotFoundException;
+import com.agora.booking.management.exception.UnauthorizedAccessException;
 import com.agora.booking.management.repository.EventRepository;
 import com.agora.booking.management.repository.UserRepository;
 import com.agora.booking.management.service.impl.EventServiceImpl;
@@ -402,5 +404,166 @@ class EventServiceImplTest {
 
         // Assert
         verify(eventRepository, times(1)).findById(10L);
+    }
+
+    // =============================================
+    // FR07 — Update Event Tests
+    // =============================================
+
+    @Test
+    @DisplayName("Should return updated EventResponse when creator updates event")
+    void updateEvent_ShouldReturnUpdatedEventResponse_WhenCreatorUpdates() {
+
+        // Arrange
+        UpdateEventRequest updateRequest = new UpdateEventRequest();
+        updateRequest.setTitle("Tech Conference 2025 — Updated");
+        updateRequest.setDescription("Updated description");
+        updateRequest.setLocation("Bali Nusa Dua Convention Center");
+        updateRequest.setEventDate(LocalDateTime.of(2025, 7, 20, 9, 0, 0));
+        updateRequest.setAvailableSeats(250);
+        updateRequest.setTicketPrice(new BigDecimal("175000.00"));
+
+        Event updatedEvent = Event.builder()
+                .id(10L)
+                .title("Tech Conference 2025 — Updated")
+                .description("Updated description")
+                .location("Bali Nusa Dua Convention Center")
+                .eventDate(LocalDateTime.of(2025, 7, 20, 9, 0, 0))
+                .availableSeats(250)
+                .ticketPrice(new BigDecimal("175000.00"))
+                .isActive(true)
+                .creator(creator)
+                .createdAt(LocalDateTime.of(2025, 1, 1, 10, 0, 0))
+                .updatedAt(LocalDateTime.of(2025, 1, 10, 8, 0, 0))
+                .build();
+
+        when(eventRepository.findByIdAndIsActiveTrue(10L))
+                .thenReturn(Optional.of(savedEvent));
+        when(eventRepository.save(any(Event.class)))
+                .thenReturn(updatedEvent);
+
+        // Act
+        EventResponse response = eventService.updateEvent(
+                10L, updateRequest, "alice@example.com");
+
+        // Assert
+        assertThat(response).isNotNull();
+        assertThat(response.getTitle()).isEqualTo("Tech Conference 2025 — Updated");
+        assertThat(response.getLocation()).isEqualTo("Bali Nusa Dua Convention Center");
+        assertThat(response.getAvailableSeats()).isEqualTo(250);
+        assertThat(response.getTicketPrice()).isEqualByComparingTo("175000.00");
+    }
+
+    @Test
+    @DisplayName("Should throw UnauthorizedAccessException when non-creator tries to update")
+    void updateEvent_ShouldThrowUnauthorizedAccessException_WhenNonCreatorUpdates() {
+
+        // Arrange
+        UpdateEventRequest updateRequest = new UpdateEventRequest();
+        updateRequest.setTitle("Coba Update");
+        updateRequest.setDescription("Coba update oleh user lain");
+        updateRequest.setLocation("Jakarta");
+        updateRequest.setEventDate(LocalDateTime.of(2025, 7, 20, 9, 0, 0));
+        updateRequest.setAvailableSeats(100);
+        updateRequest.setTicketPrice(new BigDecimal("50000.00"));
+
+        when(eventRepository.findByIdAndIsActiveTrue(10L))
+                .thenReturn(Optional.of(savedEvent));
+
+        // Act & Assert — email berbeda dengan creator
+        assertThatThrownBy(() -> eventService.updateEvent(10L, updateRequest, "other@example.com"))
+                .isInstanceOf(UnauthorizedAccessException.class)
+                .hasMessage("You are not authorized to modify this event");
+
+        // Pastikan save TIDAK dipanggil
+        verify(eventRepository, never()).save(any(Event.class));
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when event not found")
+    void updateEvent_ShouldThrowResourceNotFoundException_WhenEventNotFound() {
+
+        // Arrange
+        UpdateEventRequest updateRequest = new UpdateEventRequest();
+        updateRequest.setTitle("Tech Conference 2025 — Updated");
+        updateRequest.setDescription("Updated description");
+        updateRequest.setLocation("Bali Nusa Dua Convention Center");
+        updateRequest.setEventDate(LocalDateTime.of(2025, 7, 20, 9, 0, 0));
+        updateRequest.setAvailableSeats(250);
+        updateRequest.setTicketPrice(new BigDecimal("175000.00"));
+
+        when(eventRepository.findByIdAndIsActiveTrue(99999L))
+                .thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> eventService.updateEvent(99999L, updateRequest, "alice@example.com"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("99999");
+
+        verify(eventRepository, never()).save(any(Event.class));
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when event is soft-deleted")
+    void updateEvent_ShouldThrowResourceNotFoundException_WhenEventIsSoftDeleted() {
+
+        // Arrange
+        UpdateEventRequest updateRequest = new UpdateEventRequest();
+        updateRequest.setTitle("Tech Conference 2025 — Updated");
+        updateRequest.setDescription("Updated description");
+        updateRequest.setLocation("Bali Nusa Dua Convention Center");
+        updateRequest.setEventDate(LocalDateTime.of(2025, 7, 20, 9, 0, 0));
+        updateRequest.setAvailableSeats(250);
+        updateRequest.setTicketPrice(new BigDecimal("175000.00"));
+
+        // findByIdAndIsActiveTrue return empty karena isActive=false
+        when(eventRepository.findByIdAndIsActiveTrue(10L))
+                .thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> eventService.updateEvent(10L, updateRequest, "alice@example.com"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("10");
+
+        verify(eventRepository, never()).save(any(Event.class));
+    }
+
+    @Test
+    @DisplayName("Should call save once when update is successful")
+    void updateEvent_ShouldCallSaveOnce_WhenUpdateIsSuccessful() {
+
+        // Arrange
+        UpdateEventRequest updateRequest = new UpdateEventRequest();
+        updateRequest.setTitle("Tech Conference 2025 — Updated");
+        updateRequest.setDescription("Updated description");
+        updateRequest.setLocation("Bali Nusa Dua Convention Center");
+        updateRequest.setEventDate(LocalDateTime.of(2025, 7, 20, 9, 0, 0));
+        updateRequest.setAvailableSeats(250);
+        updateRequest.setTicketPrice(new BigDecimal("175000.00"));
+
+        Event updatedEvent = Event.builder()
+                .id(10L)
+                .title("Tech Conference 2025 — Updated")
+                .description("Updated description")
+                .location("Bali Nusa Dua Convention Center")
+                .eventDate(LocalDateTime.of(2025, 7, 20, 9, 0, 0))
+                .availableSeats(250)
+                .ticketPrice(new BigDecimal("175000.00"))
+                .isActive(true)
+                .creator(creator)
+                .createdAt(LocalDateTime.of(2025, 1, 1, 10, 0, 0))
+                .updatedAt(LocalDateTime.of(2025, 1, 10, 8, 0, 0))
+                .build();
+
+        when(eventRepository.findByIdAndIsActiveTrue(10L))
+                .thenReturn(Optional.of(savedEvent));
+        when(eventRepository.save(any(Event.class)))
+                .thenReturn(updatedEvent);
+
+        // Act
+        eventService.updateEvent(10L, updateRequest, "alice@example.com");
+
+        // Assert
+        verify(eventRepository, times(1)).save(any(Event.class));
     }
 }
