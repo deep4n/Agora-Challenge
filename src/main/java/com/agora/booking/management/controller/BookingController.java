@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -43,5 +46,24 @@ public class BookingController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Booking created successfully", bookingResponse));
+    }
+
+    // =============================================
+    // GET /api/bookings/me — FR11
+    // Protected — ambil semua booking milik user
+    // Urutan: terbaru di atas
+    // =============================================
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<List<BookingResponse>>> getMyBookings(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.debug("GET /api/bookings/me - user: {}", userDetails.getUsername());
+
+        List<BookingResponse> bookings = bookingService.getMyBookings(
+                userDetails.getUsername());
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(ApiResponse.success("Bookings retrieved successfully", bookings));
     }
 }
