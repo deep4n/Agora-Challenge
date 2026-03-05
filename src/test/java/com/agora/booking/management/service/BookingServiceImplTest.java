@@ -9,6 +9,7 @@ import com.agora.booking.management.exception.DuplicateBookingException;
 import com.agora.booking.management.exception.EventNotAvailableException;
 import com.agora.booking.management.exception.InsufficientSeatsException;
 import com.agora.booking.management.exception.ResourceNotFoundException;
+import com.agora.booking.management.exception.BookingCancellationException;
 import com.agora.booking.management.model.BookingStatus;
 import com.agora.booking.management.repository.BookingRepository;
 import com.agora.booking.management.repository.EventRepository;
@@ -425,5 +426,148 @@ class BookingServiceImplTest {
         // Assert
         verify(bookingRepository, times(1))
                 .findByUserIdOrderByCreatedAtDesc(1L);
+    }
+
+    // =============================================
+    // FR12 — Cancel Booking Tests
+    // =============================================
+
+    @Test
+    @DisplayName("Should return cancelled BookingResponse when cancellation is successful")
+    void cancelBooking_ShouldReturnCancelledBookingResponse_WhenSuccessful() {
+
+        // Arrange
+        Booking cancelledBooking = Booking.builder()
+                .id(55L)
+                .referenceNumber("BK-20250101-483921")
+                .user(user)
+                .event(event)
+                .numTickets(2)
+                .totalPrice(new BigDecimal("300000.00"))
+                .status(BookingStatus.CANCELLED)
+                .createdAt(LocalDateTime.of(2025, 1, 1, 11, 0, 0))
+                .build();
+
+        when(userRepository.findByEmail("alice@example.com"))
+                .thenReturn(Optional.of(user));
+        when(bookingRepository.findByIdAndUserId(55L, 1L))
+                .thenReturn(Optional.of(savedBooking));
+        when(bookingRepository.save(any(Booking.class)))
+                .thenReturn(cancelledBooking);
+
+        // Act
+        BookingResponse response = bookingService.cancelBooking(55L, "alice@example.com");
+
+        // Assert
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(BookingStatus.CANCELLED);
+        assertThat(response.getReferenceNumber()).isEqualTo("BK-20250101-483921");
+    }
+
+    @Test
+    @DisplayName("Should restore availableSeats after cancellation")
+    void cancelBooking_ShouldRestoreAvailableSeats_AfterCancellation() {
+
+        // Arrange — event dengan 198 seats (sudah dikurangi 2 saat booking)
+        event.setAvailableSeats(198);
+
+        when(userRepository.findByEmail("alice@example.com"))
+                .thenReturn(Optional.of(user));
+        when(bookingRepository.findByIdAndUserId(55L, 1L))
+                .thenReturn(Optional.of(savedBooking));
+        when(bookingRepository.save(any(Booking.class)))
+                .thenReturn(savedBooking);
+
+        // Act
+        bookingService.cancelBooking(55L, "alice@example.com");
+
+        // Assert — event di-save dengan availableSeats dikembalikan 2
+        verify(eventRepository).save(argThat(e -> e.getAvailableSeats().equals(200) // 198 + 2
+        ));
+    }
+
+    @Test
+    @DisplayName("Should throw BookingCancellationException when booking is already cancelled")
+    void cancelBooking_ShouldThrowBookingCancellationException_WhenAlreadyCancelled() {
+
+        // Arrange
+        savedBooking.setStatus(BookingStatus.CANCELLED);
+
+        when(userRepository.findByEmail("alice@example.com"))
+                .thenReturn(Optional.of(user));
+        when(bookingRepository.findByIdAndUserId(55L, 1L))
+                .thenReturn(Optional.of(savedBooking));
+
+        // Act & Assert
+        assertThatThrownBy(() -> bookingService.cancelBooking(55L, "alice@example.com"))
+                .isInstanceOf(BookingCancellationException.class)
+                .hasMessage("Booking is already cancelled");
+
+        verify(eventRepository, never()).save(any(Event.class));
+        verify(bookingRepository, never()).save(any(Booking.class));
+    }
+
+    @Test
+    @DisplayName("Should throw BookingCancellationException when cancellation deadline passed")
+    void cancelBooking_ShouldThrowBookingCancellationException_WhenDeadlinePassed() {
+
+        // Arrange — eventDate kurang dari 24 jam dari sekarang
+        event.setEventDate(LocalDateTime.now().plusHours(12));
+
+        when(userRepository.findByEmail("alice@example.com"))
+                .thenReturn(Optional.of(user));
+        when(bookingRepository.findByIdAndUserId(55L, 1L))
+                .thenReturn(Optional.of(savedBooking));
+
+        // Act & Assert
+        assertThatThrownBy(() -> bookingService.cancelBooking(55L, "alice@example.com"))
+                .isInstanceOf(BookingCancellationException.class)
+                .hasMessage("Cancellation is only allowed up to 24 hours before the event");
+
+        verify(eventRepository, never()).save(any(Event.class));
+        verify(bookingRepository, never()).save(any(Booking.class));
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when booking not found")
+    void cancelBooking_ShouldThrowResourceNotFoundException_WhenBookingNotFound() {
+
+        // Arrange
+        when(userRepository.findByEmail("alice@example.com"))
+                .thenReturn(Optional.of(user));
+        when(bookingRepository.findByIdAndUserId(99999L, 1L))
+                .thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> bookingService.cancelBooking(99999L, "alice@example.com"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("99999");
+
+        verify(eventRepository, never()).save(any(Event.class));
+        verify(bookingRepository, never()).save(any(Booking.class));
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when booking does not belong to user")
+    void cancelBooking_ShouldThrowResourceNotFoundException_WhenBookingNotOwnedByUser() {
+
+        // Arrange — findByIdAndUserId return empty karena bukan milik user
+        when(userRepository.findByEmail("other@example.com"))
+                .thenReturn(Optional.of(User.builder()
+                        .id(2L)
+                        .name("Bob Smith")
+                        .email("other@example.com")
+                        .password("$2a$12$hashedPassword")
+                        .build()));
+        when(bookingRepository.findByIdAndUserId(55L, 2L))
+                .thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> bookingService.cancelBooking(55L, "other@example.com"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("55");
+
+        verify(eventRepository, never()).save(any(Event.class));
+        verify(bookingRepository, never()).save(any(Booking.class));
     }
 }
