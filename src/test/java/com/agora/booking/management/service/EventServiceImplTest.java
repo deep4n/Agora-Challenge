@@ -32,6 +32,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
@@ -564,6 +565,95 @@ class EventServiceImplTest {
         eventService.updateEvent(10L, updateRequest, "alice@example.com");
 
         // Assert
+        verify(eventRepository, times(1)).save(any(Event.class));
+    }
+
+    // =============================================
+    // FR08 — Delete Event (Soft Delete) Tests
+    // =============================================
+
+    @Test
+    @DisplayName("Should soft delete event when creator deletes it")
+    void deleteEvent_ShouldSoftDeleteEvent_WhenCreatorDeletes() {
+
+        // Arrange
+        when(eventRepository.findByIdAndIsActiveTrue(10L))
+                .thenReturn(Optional.of(savedEvent));
+        when(eventRepository.save(any(Event.class)))
+                .thenReturn(savedEvent);
+
+        // Act
+        eventService.deleteEvent(10L, "alice@example.com");
+
+        // Assert — save dipanggil dengan isActive = false
+        verify(eventRepository, times(1)).save(argThat(event -> event.getIsActive().equals(false)));
+    }
+
+    @Test
+    @DisplayName("Should throw UnauthorizedAccessException when non-creator tries to delete")
+    void deleteEvent_ShouldThrowUnauthorizedAccessException_WhenNonCreatorDeletes() {
+
+        // Arrange
+        when(eventRepository.findByIdAndIsActiveTrue(10L))
+                .thenReturn(Optional.of(savedEvent));
+
+        // Act & Assert
+        assertThatThrownBy(() -> eventService.deleteEvent(10L, "other@example.com"))
+                .isInstanceOf(UnauthorizedAccessException.class)
+                .hasMessage("You are not authorized to delete this event");
+
+        // Pastikan save TIDAK dipanggil
+        verify(eventRepository, never()).save(any(Event.class));
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when event not found")
+    void deleteEvent_ShouldThrowResourceNotFoundException_WhenEventNotFound() {
+
+        // Arrange
+        when(eventRepository.findByIdAndIsActiveTrue(99999L))
+                .thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> eventService.deleteEvent(99999L, "alice@example.com"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("99999");
+
+        verify(eventRepository, never()).save(any(Event.class));
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when event is already soft-deleted")
+    void deleteEvent_ShouldThrowResourceNotFoundException_WhenEventAlreadySoftDeleted() {
+
+        // Arrange — findByIdAndIsActiveTrue return empty karena isActive=false
+        when(eventRepository.findByIdAndIsActiveTrue(10L))
+                .thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> eventService.deleteEvent(10L, "alice@example.com"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("10");
+
+        verify(eventRepository, never()).save(any(Event.class));
+    }
+
+    @Test
+    @DisplayName("Should set isActive to false, not physically delete from database")
+    void deleteEvent_ShouldSetIsActiveFalse_NotPhysicallyDelete() {
+
+        // Arrange
+        when(eventRepository.findByIdAndIsActiveTrue(10L))
+                .thenReturn(Optional.of(savedEvent));
+        when(eventRepository.save(any(Event.class)))
+                .thenReturn(savedEvent);
+
+        // Act
+        eventService.deleteEvent(10L, "alice@example.com");
+
+        // Assert — delete TIDAK pernah dipanggil, hanya save
+        verify(eventRepository, never()).delete(any(Event.class));
+        verify(eventRepository, never()).deleteById(anyLong());
         verify(eventRepository, times(1)).save(any(Event.class));
     }
 }
