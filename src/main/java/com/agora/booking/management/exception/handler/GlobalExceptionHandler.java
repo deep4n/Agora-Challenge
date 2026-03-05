@@ -4,6 +4,8 @@ import com.agora.booking.management.dto.response.ErrorResponse;
 import com.agora.booking.management.exception.EmailAlreadyExistsException;
 import com.agora.booking.management.exception.InvalidCredentialsException;
 import com.agora.booking.management.exception.ResourceNotFoundException;
+import com.agora.booking.management.exception.UnauthorizedAccessException;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -56,6 +58,23 @@ public class GlobalExceptionHandler {
                                 .build();
 
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        }
+
+        // =============================================
+        // 403 — Forbidden
+        // =============================================
+        @ExceptionHandler(UnauthorizedAccessException.class)
+        public ResponseEntity<ErrorResponse> handleUnauthorizedAccessException(
+                        UnauthorizedAccessException ex) {
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .status(HttpStatus.FORBIDDEN.value())
+                                .error("Forbidden")
+                                .message(ex.getMessage())
+                                .timestamp(LocalDateTime.now())
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
         }
 
         // =============================================
