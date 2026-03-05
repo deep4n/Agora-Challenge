@@ -55,6 +55,16 @@ public class Event {
     @JoinColumn(name = "creator_id", nullable = false)
     private User creator;
 
+    /**
+     * Optimistic Locking — mencegah overselling saat concurrent booking.
+     * Hibernate otomatis increment version setiap kali event di-update.
+     * Jika 2 transaksi update event bersamaan, salah satu akan throw
+     * OptimisticLockException → ditangkap sebagai 409 Conflict.
+     */
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
