@@ -50,14 +50,6 @@ public class EventController {
 
     // =============================================
     // GET /api/events — FR05 + FR09
-    // Public endpoint — tidak butuh token
-    // Query params:
-    // page → default 0
-    // size → default 10
-    // title → optional, partial match
-    // location → optional, partial match
-    // startDate → optional, format: yyyy-MM-dd'T'HH:mm:ss
-    // endDate → optional, format: yyyy-MM-dd'T'HH:mm:ss
     // =============================================
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<EventResponse>>> listEvents(
@@ -66,7 +58,6 @@ public class EventController {
             @RequestParam(defaultValue = "10") @Min(value = 1, message = "Size must be at least 1") int size,
 
             @RequestParam(required = false) String title,
-
             @RequestParam(required = false) String location,
 
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
@@ -82,5 +73,22 @@ public class EventController {
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(ApiResponse.success("Events retrieved successfully", response));
+    }
+
+    // =============================================
+    // GET /api/events/{id} — FR06
+    // Public endpoint — tidak butuh token
+    // =============================================
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<EventResponse>> getEventById(
+            @PathVariable Long id) {
+
+        log.debug("GET /api/events/{} - fetching event detail", id);
+
+        EventResponse eventResponse = eventService.getEventById(id);
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(ApiResponse.success("Event retrieved successfully", eventResponse));
     }
 }
