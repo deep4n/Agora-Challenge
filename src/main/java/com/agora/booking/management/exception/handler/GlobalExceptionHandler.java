@@ -1,7 +1,10 @@
 package com.agora.booking.management.exception.handler;
 
 import com.agora.booking.management.dto.response.ErrorResponse;
+import com.agora.booking.management.exception.DuplicateBookingException;
 import com.agora.booking.management.exception.EmailAlreadyExistsException;
+import com.agora.booking.management.exception.EventNotAvailableException;
+import com.agora.booking.management.exception.InsufficientSeatsException;
 import com.agora.booking.management.exception.InvalidCredentialsException;
 import com.agora.booking.management.exception.ResourceNotFoundException;
 import com.agora.booking.management.exception.UnauthorizedAccessException;
@@ -9,6 +12,7 @@ import com.agora.booking.management.exception.UnauthorizedAccessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -37,6 +41,41 @@ public class GlobalExceptionHandler {
                                 .error("Validation Failed")
                                 .message("One or more fields have validation errors")
                                 .fieldErrors(fieldErrors)
+                                .timestamp(LocalDateTime.now())
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+
+        // =============================================
+        // 400 — Insufficient Seats
+        // =============================================
+        @ExceptionHandler(InsufficientSeatsException.class)
+        public ResponseEntity<ErrorResponse> handleInsufficientSeatsException(
+                        InsufficientSeatsException ex) {
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error("Bad Request")
+                                .message(ex.getMessage())
+                                .timestamp(LocalDateTime.now())
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+
+        // =============================================
+        // 400 — Event Not Available
+        // (past event atau isActive=false)
+        // =============================================
+        @ExceptionHandler(EventNotAvailableException.class)
+        public ResponseEntity<ErrorResponse> handleEventNotAvailableException(
+                        EventNotAvailableException ex) {
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error("Bad Request")
+                                .message(ex.getMessage())
                                 .timestamp(LocalDateTime.now())
                                 .build();
 
@@ -128,5 +167,41 @@ public class GlobalExceptionHandler {
                                 .build();
 
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+
+        // =============================================
+        // 409 — Duplicate Booking (FR14)
+        // =============================================
+        @ExceptionHandler(DuplicateBookingException.class)
+        public ResponseEntity<ErrorResponse> handleDuplicateBookingException(
+                        DuplicateBookingException ex) {
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .status(HttpStatus.CONFLICT.value())
+                                .error("Conflict")
+                                .message(ex.getMessage())
+                                .timestamp(LocalDateTime.now())
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+        }
+
+        // =============================================
+        // 409 — Optimistic Lock (Concurrent Booking)
+        // =============================================
+        @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+        public ResponseEntity<ErrorResponse> handleOptimisticLockException(
+                        ObjectOptimisticLockingFailureException ex) {
+
+                log.warn("Optimistic lock conflict: {}", ex.getMessage());
+
+                ErrorResponse response = ErrorResponse.builder()
+                                .status(HttpStatus.CONFLICT.value())
+                                .error("Conflict")
+                                .message("Request could not be completed due to a concurrent update. Please try again.")
+                                .timestamp(LocalDateTime.now())
+                                .build();
+
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
         }
 }
