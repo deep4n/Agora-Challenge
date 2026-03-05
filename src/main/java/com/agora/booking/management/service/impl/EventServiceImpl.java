@@ -148,6 +148,34 @@ public class EventServiceImpl implements EventService {
     }
 
     // =============================================
+    // FR08 — Delete Event (Soft Delete)
+    // Set isActive = false, tidak hapus dari DB
+    // Hanya creator yang boleh delete
+    // =============================================
+    @Override
+    @Transactional
+    public void deleteEvent(Long id, String deleterEmail) {
+
+        log.debug("Deleting event id: {} by user: {}", id, deleterEmail);
+
+        // 1. Cari event — jika tidak ada atau sudah soft-deleted → 404
+        Event event = eventRepository.findByIdAndIsActiveTrue(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", id));
+
+        // 2. Cek apakah user yang request adalah creator — jika bukan → 403
+        if (!event.getCreator().getEmail().equals(deleterEmail)) {
+            throw new UnauthorizedAccessException(
+                    "You are not authorized to delete this event");
+        }
+
+        // 3. Soft delete — set isActive = false, TIDAK hapus dari DB
+        event.setIsActive(false);
+        eventRepository.save(event);
+
+        log.debug("Event id: {} soft-deleted successfully", id);
+    }
+
+    // =============================================
     // Private helper — mapping Entity ke DTO
     // =============================================
     public EventResponse mapToEventResponse(Event event) {
