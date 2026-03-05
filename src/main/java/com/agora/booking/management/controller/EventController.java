@@ -41,8 +41,7 @@ public class EventController {
                 request.getTitle(), userDetails.getUsername());
 
         EventResponse eventResponse = eventService.createEvent(
-                request,
-                userDetails.getUsername());
+                request, userDetails.getUsername());
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -94,7 +93,6 @@ public class EventController {
 
     // =============================================
     // PUT /api/events/{id} — FR07
-    // Protected — hanya creator yang boleh update
     // =============================================
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<EventResponse>> updateEvent(
@@ -105,12 +103,29 @@ public class EventController {
         log.debug("PUT /api/events/{} - editor: {}", id, userDetails.getUsername());
 
         EventResponse eventResponse = eventService.updateEvent(
-                id,
-                request,
-                userDetails.getUsername());
+                id, request, userDetails.getUsername());
 
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(ApiResponse.success("Event updated successfully", eventResponse));
+    }
+
+    // =============================================
+    // DELETE /api/events/{id} — FR08
+    // Soft delete — set isActive = false
+    // Hanya creator yang boleh delete
+    // =============================================
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteEvent(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.debug("DELETE /api/events/{} - deleter: {}", id, userDetails.getUsername());
+
+        eventService.deleteEvent(id, userDetails.getUsername());
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(ApiResponse.success("Event deleted successfully", null));
     }
 }
