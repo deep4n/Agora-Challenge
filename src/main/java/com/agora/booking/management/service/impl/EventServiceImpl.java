@@ -94,6 +94,21 @@ public class EventServiceImpl implements EventService {
     }
 
     // =============================================
+    // FR06 — Get Event Detail by ID
+    // =============================================
+    @Override
+    @Transactional(readOnly = true)
+    public EventResponse getEventById(Long id) {
+
+        log.debug("Fetching event detail for id: {}", id);
+
+        Event event = eventRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", id));
+
+        return mapToEventResponse(event);
+    }
+
+    // =============================================
     // Private helper — mapping Entity ke DTO
     // =============================================
     public EventResponse mapToEventResponse(Event event) {
