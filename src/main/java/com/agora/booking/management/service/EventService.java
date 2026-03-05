@@ -22,4 +22,6 @@ public interface EventService {
     EventResponse getEventById(Long id);
 
     EventResponse updateEvent(Long id, UpdateEventRequest request, String editorEmail);
+
+    void deleteEvent(Long id, String deleterEmail);
 }
