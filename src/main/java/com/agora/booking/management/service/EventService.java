@@ -1,6 +1,7 @@
 package com.agora.booking.management.service;
 
 import com.agora.booking.management.dto.request.CreateEventRequest;
+import com.agora.booking.management.dto.request.UpdateEventRequest;
 import com.agora.booking.management.dto.response.EventResponse;
 import com.agora.booking.management.dto.response.PageResponse;
 
@@ -19,4 +20,6 @@ public interface EventService {
             LocalDateTime endDate);
 
     EventResponse getEventById(Long id);
+
+    EventResponse updateEvent(Long id, UpdateEventRequest request, String editorEmail);
 }
