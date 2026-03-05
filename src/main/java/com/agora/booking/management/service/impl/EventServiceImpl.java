@@ -1,12 +1,14 @@
 package com.agora.booking.management.service.impl;
 
 import com.agora.booking.management.dto.request.CreateEventRequest;
+import com.agora.booking.management.dto.request.UpdateEventRequest;
 import com.agora.booking.management.dto.response.CreatorResponse;
 import com.agora.booking.management.dto.response.EventResponse;
 import com.agora.booking.management.dto.response.PageResponse;
 import com.agora.booking.management.entity.Event;
 import com.agora.booking.management.entity.User;
 import com.agora.booking.management.exception.ResourceNotFoundException;
+import com.agora.booking.management.exception.UnauthorizedAccessException;
 import com.agora.booking.management.repository.EventRepository;
 import com.agora.booking.management.repository.EventSpecification;
 import com.agora.booking.management.repository.UserRepository;
@@ -106,6 +108,43 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new ResourceNotFoundException("Event", id));
 
         return mapToEventResponse(event);
+    }
+
+    // =============================================
+    // FR07 — Update Event
+    // Hanya creator yang boleh update
+    // Event soft-deleted (isActive=false) → 404
+    // =============================================
+    @Override
+    @Transactional
+    public EventResponse updateEvent(Long id, UpdateEventRequest request, String editorEmail) {
+
+        log.debug("Updating event id: {} by user: {}", id, editorEmail);
+
+        // 1. Cari event — jika tidak ada atau soft-deleted → 404
+        Event event = eventRepository.findByIdAndIsActiveTrue(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", id));
+
+        // 2. Cek apakah user yang request adalah creator — jika bukan → 403
+        if (!event.getCreator().getEmail().equals(editorEmail)) {
+            throw new UnauthorizedAccessException(
+                    "You are not authorized to modify this event");
+        }
+
+        // 3. Update semua field
+        event.setTitle(request.getTitle());
+        event.setDescription(request.getDescription());
+        event.setLocation(request.getLocation());
+        event.setEventDate(request.getEventDate());
+        event.setAvailableSeats(request.getAvailableSeats());
+        event.setTicketPrice(request.getTicketPrice());
+
+        // 4. Simpan perubahan
+        Event updatedEvent = eventRepository.save(event);
+
+        log.debug("Event id: {} updated successfully", updatedEvent.getId());
+
+        return mapToEventResponse(updatedEvent);
     }
 
     // =============================================
