@@ -26,10 +26,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -334,5 +337,93 @@ class BookingServiceImplTest {
         // Assert
         verify(referenceNumberGenerator, times(1)).generate();
         assertThat(response.getReferenceNumber()).startsWith("BK-");
+    }
+
+    // =============================================
+    // FR11 — Get My Bookings Tests
+    // =============================================
+
+    @Test
+    @DisplayName("Should return list of bookings when user has bookings")
+    void getMyBookings_ShouldReturnListOfBookings_WhenUserHasBookings() {
+
+        // Arrange
+        Booking secondBooking = Booking.builder()
+                .id(56L)
+                .referenceNumber("BK-20250102-123456")
+                .user(user)
+                .event(event)
+                .numTickets(1)
+                .totalPrice(new BigDecimal("150000.00"))
+                .status(BookingStatus.ACTIVE)
+                .createdAt(LocalDateTime.of(2025, 1, 2, 11, 0, 0))
+                .build();
+
+        when(userRepository.findByEmail("alice@example.com"))
+                .thenReturn(Optional.of(user));
+        when(bookingRepository.findByUserIdOrderByCreatedAtDesc(1L))
+                .thenReturn(List.of(savedBooking, secondBooking));
+
+        // Act
+        List<BookingResponse> response = bookingService.getMyBookings("alice@example.com");
+
+        // Assert
+        assertThat(response).isNotNull();
+        assertThat(response).hasSize(2);
+        assertThat(response.get(0).getReferenceNumber()).isEqualTo("BK-20250101-483921");
+        assertThat(response.get(1).getReferenceNumber()).isEqualTo("BK-20250102-123456");
+    }
+
+    @Test
+    @DisplayName("Should return empty list when user has no bookings")
+    void getMyBookings_ShouldReturnEmptyList_WhenUserHasNoBookings() {
+
+        // Arrange
+        when(userRepository.findByEmail("alice@example.com"))
+                .thenReturn(Optional.of(user));
+        when(bookingRepository.findByUserIdOrderByCreatedAtDesc(1L))
+                .thenReturn(List.of());
+
+        // Act
+        List<BookingResponse> response = bookingService.getMyBookings("alice@example.com");
+
+        // Assert
+        assertThat(response).isNotNull();
+        assertThat(response).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when user not found")
+    void getMyBookings_ShouldThrowResourceNotFoundException_WhenUserNotFound() {
+
+        // Arrange
+        when(userRepository.findByEmail("notfound@example.com"))
+                .thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> bookingService.getMyBookings("notfound@example.com"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("notfound@example.com");
+
+        verify(bookingRepository, never())
+                .findByUserIdOrderByCreatedAtDesc(anyLong());
+    }
+
+    @Test
+    @DisplayName("Should call findByUserIdOrderByCreatedAtDesc with correct user id")
+    void getMyBookings_ShouldCallRepository_WithCorrectUserId() {
+
+        // Arrange
+        when(userRepository.findByEmail("alice@example.com"))
+                .thenReturn(Optional.of(user));
+        when(bookingRepository.findByUserIdOrderByCreatedAtDesc(1L))
+                .thenReturn(List.of(savedBooking));
+
+        // Act
+        bookingService.getMyBookings("alice@example.com");
+
+        // Assert
+        verify(bookingRepository, times(1))
+                .findByUserIdOrderByCreatedAtDesc(1L);
     }
 }
