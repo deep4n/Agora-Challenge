@@ -1,7 +1,6 @@
 package com.agora.booking.management.service;
 
 import com.agora.booking.management.dto.request.CreateEventRequest;
-import com.agora.booking.management.dto.request.RegisterRequest;
 import com.agora.booking.management.dto.response.EventResponse;
 import com.agora.booking.management.dto.response.PageResponse;
 import com.agora.booking.management.entity.Event;
@@ -31,6 +30,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -314,5 +314,93 @@ class EventServiceImplTest {
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getContent().get(0).getEventDate())
                 .isBetween(startDate, endDate);
+    }
+
+    // =============================================
+    // FR06 — Get Event Detail Tests
+    // =============================================
+
+    @Test
+    @DisplayName("Should return EventResponse when event exists")
+    void getEventById_ShouldReturnEventResponse_WhenEventExists() {
+
+        // Arrange
+        when(eventRepository.findById(10L))
+                .thenReturn(Optional.of(savedEvent));
+
+        // Act
+        EventResponse response = eventService.getEventById(10L);
+
+        // Assert
+        assertThat(response).isNotNull();
+        assertThat(response.getId()).isEqualTo(10L);
+        assertThat(response.getTitle()).isEqualTo("Tech Conference 2025");
+        assertThat(response.getLocation()).isEqualTo("Jakarta Convention Center");
+        assertThat(response.getAvailableSeats()).isEqualTo(200);
+        assertThat(response.getTicketPrice()).isEqualByComparingTo("150000.00");
+        assertThat(response.getIsActive()).isTrue();
+        assertThat(response.getCreator()).isNotNull();
+        assertThat(response.getCreator().getId()).isEqualTo(1L);
+        assertThat(response.getCreator().getName()).isEqualTo("Alice Johnson");
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when event not found")
+    void getEventById_ShouldThrowResourceNotFoundException_WhenEventNotFound() {
+
+        // Arrange
+        when(eventRepository.findById(99999L))
+                .thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> eventService.getEventById(99999L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("99999");
+
+        verify(eventRepository, times(1)).findById(99999L);
+    }
+
+    @Test
+    @DisplayName("Should return correct availableSeats in response")
+    void getEventById_ShouldReturnCorrectAvailableSeats() {
+
+        // Arrange
+        Event eventWithSeats = Event.builder()
+                .id(10L)
+                .title("Tech Conference 2025")
+                .description("Annual tech conference")
+                .location("Jakarta Convention Center")
+                .eventDate(LocalDateTime.of(2025, 6, 15, 9, 0, 0))
+                .availableSeats(150) // sisa kursi setelah beberapa booking
+                .ticketPrice(new BigDecimal("150000.00"))
+                .isActive(true)
+                .creator(creator)
+                .createdAt(LocalDateTime.of(2025, 1, 1, 10, 0, 0))
+                .updatedAt(LocalDateTime.of(2025, 1, 1, 10, 0, 0))
+                .build();
+
+        when(eventRepository.findById(10L))
+                .thenReturn(Optional.of(eventWithSeats));
+
+        // Act
+        EventResponse response = eventService.getEventById(10L);
+
+        // Assert — availableSeats harus sesuai dengan kondisi terkini di DB
+        assertThat(response.getAvailableSeats()).isEqualTo(150);
+    }
+
+    @Test
+    @DisplayName("Should call findById once with correct id")
+    void getEventById_ShouldCallFindById_WithCorrectId() {
+
+        // Arrange
+        when(eventRepository.findById(10L))
+                .thenReturn(Optional.of(savedEvent));
+
+        // Act
+        eventService.getEventById(10L);
+
+        // Assert
+        verify(eventRepository, times(1)).findById(10L);
     }
 }
